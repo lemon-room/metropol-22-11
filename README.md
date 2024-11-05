@@ -1,4 +1,4 @@
-# THREEJS-starter-project-vite
+# THREEJS-AR-project
  
 **Threejs + Vite Vanilla js** for starter pack who don't want to worry about how to setup things module and install plugin 
 ### First Install Package
