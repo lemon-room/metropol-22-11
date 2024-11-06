@@ -47,7 +47,8 @@ export function createGlowMaterial(color = new Color(0xbd7543), intensity = 0.5)
     fragmentShader: fsPlanets,
     transparent: true,
     blending: AdditiveBlending,
-    side: DoubleSide
+    side: DoubleSide,
+    depthWrite: false
   })
 }
 export function createBlackHoleMaterial() {

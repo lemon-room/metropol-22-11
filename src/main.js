@@ -39,7 +39,7 @@ composer.addPass(renderPass)
 composer.addPass(bloomPass)
 
 //let boxGeo, plane, material, boxMesh
-let sceneOne, sceneTwo, hdriMap
+let sceneOne, sceneTwo, logoMesh, hdriMap
 let sceneOneAnimations, sceneTwoAnimations
 let sceneOneAnimationMixer, sceneTwoAnimationMixer
 
@@ -100,23 +100,24 @@ loaderGLB.load('03_Planet.glb', function (gltf) {
   sceneTwo = gltf.scene
   sceneTwo.traverse((child) => {
     if (child.isMesh) {
-      // Создаем копию геометрии с немного увеличенным размером для свечения
-      const glowMaterial = createGlowMaterial(new THREE.Color(0x00ff00), 1.2)
+      // Создаем меш для свечения
+      const glowMaterial = createGlowMaterial()
       child.material = glowMaterial
     }
   })
+
   scene.add(sceneTwo)
   sceneTwo.scale.set(0.35, 0.35, 0.35)
   sceneTwo.position.set(0, 0.75, 0)
+
+  // Настройка анимаций
   sceneTwoAnimationMixer = new THREE.AnimationMixer(sceneTwo)
   sceneTwoAnimations = gltf.animations
-  // Запускаем все анимации
   sceneTwoAnimations.forEach(clip => {
     const action = sceneTwoAnimationMixer.clipAction(clip)
     action.play()
   })
 })
-
 loaderGLB.load('04_KV.glb', function (gltf) {
   sceneOne = gltf.scene
   console.log(sceneOne)
@@ -127,7 +128,7 @@ loaderGLB.load('04_KV.glb', function (gltf) {
     if (child instanceof THREE.Mesh) {
       // Убедимся, что материал поддерживает прозрачность
       child.material.transparent = true
-      child.material.opacity = 0 // Начинаем с полной прозрачности
+      child.material.opacity = 1 // Начинаем с полной прозрачности
 
       if (child.parent?.name === 'Circle-CONTROLLER') {
         child.material.envMap = hdriMap
@@ -138,13 +139,9 @@ loaderGLB.load('04_KV.glb', function (gltf) {
       }
     }
   })
-  const logoMesh = sceneOne.getObjectByName('Logo')
-  if (logoMesh) {
-    fadeInTimeline.to(logoMesh.material, {
-      opacity: 1,
-      duration: 0.6,
-    }, 2)
-  }
+
+  logoMesh = sceneOne.getObjectByName('Logo')
+
   const kvBg = sceneOne.getObjectByName('KV_BG')
   if (kvBg && kvBg instanceof THREE.Mesh) {
     const originalGeometry = kvBg.geometry
@@ -180,29 +177,6 @@ loaderGLB.load('04_KV.glb', function (gltf) {
     particleMaterial.opacity = 0
 
 
-    // Анимация основных мешей
-
-    fadeInTimeline.to(particleMaterial.uniforms.uOpacity, {
-      value: 1,
-      duration: 2
-    }, 1)
-
-    fadeInTimeline.to(outlineMaterial.uniforms.uOpacity, {
-      value: 1,
-      duration: 2
-    }, 1)
-    // Анимация контура
-    fadeInTimeline.to(outlineMesh.material, {
-      opacity: 1,
-      duration: 1.2,
-    }, 3)
-
-    // Анимация системы частиц
-    fadeInTimeline.to(particleMaterial, {
-      opacity: 1,
-      duration: 1.2,
-    }, 3)
-
     // Дополнительная анимация позиции всей сцены
     // fadeInTimeline.from(sceneOne.position, {
     //   y: -2,
@@ -224,7 +198,32 @@ loaderGLB.load('04_KV.glb', function (gltf) {
   })
 })
 
+function animateFade() {
+  // Анимация основных мешей
+  if (logoMesh) {
+    fadeInTimeline.to(logoMesh.material, {
+      opacity: 1,
+      duration: 0.6,
+    }, 2)
+  }
+  fadeInTimeline.to(particleMaterial.uniforms.uOpacity, {
+    value: 1,
+    duration: 2
+  }, 1)
 
+  fadeInTimeline.to(outlineMaterial.uniforms.uOpacity, {
+    value: 1,
+    duration: 2
+  }, 1)
+
+
+  // Анимация системы частиц
+  fadeInTimeline.to(particleMaterial, {
+    opacity: 1,
+    duration: 1.2,
+  }, 3)
+
+}
 function init() {
 
   scene.add(ambientLight)
@@ -240,6 +239,9 @@ function init() {
     color: 0x000033,
     opacity: 0.48
   })
+
+  animateFade()
+
   window.addEventListener('resize', () => {
     sizes.width = window.innerWidth
     sizes.height = window.innerHeight
@@ -276,7 +278,6 @@ function init() {
 init()
 
 
-let delta, prevTime
 let fpsInterval, now, then, elapsed, startTime
 const clock = new THREE.Clock()
 
@@ -289,9 +290,13 @@ function LockFrame(fps) {
 }
 LockFrame(60)
 
+// Обновленные настройки UnrealBloomPass для лучшего эффекта свечения
+bloomPass.strength = 1.5    // Усиление свечения
+bloomPass.radius = 0.4      // Радиус размытия
+bloomPass.threshold = 0.85  // Порог яркости
 
 function animate() {
-  const currentTime = Date.now()
+
   const elapsedTime = clock.getElapsedTime()
   requestAnimationFrame(animate)
   now = window.performance.now()
@@ -299,20 +304,20 @@ function animate() {
 
   if (elapsed >= fpsInterval) {
     then = now - (elapsed % fpsInterval)
-    delta = clock.getDelta()
 
-    // Обновляем время для шейдеров
+    // Обновляем время шейдеров
     particleMaterial.uniforms.uTime.value = elapsedTime
     outlineMaterial.uniforms.uTime.value = elapsedTime
+    blackHoleEffect.material.uniforms.time.value = elapsedTime
 
-
+    // Обновляем анимации
     if (sceneOneAnimationMixer) {
-      sceneOneAnimationMixer.update((currentTime - prevTime) * 0.001)
+      sceneOneAnimationMixer.update(elapsed * 0.001) // Преобразуем миллисекунды в секунды
     }
     if (sceneTwoAnimationMixer) {
-      sceneTwoAnimationMixer.update((currentTime - prevTime) * 0.001)
+      sceneTwoAnimationMixer.update(elapsed * 0.001)
     }
-    prevTime = currentTime
+
     stats.update()
     controls.update()
     composer.render()
