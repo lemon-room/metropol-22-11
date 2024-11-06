@@ -1,3 +1,5 @@
+// fragment.glsl
+uniform float uOpacity;
 uniform float uTime;
 varying vec3 vNormal;
 varying vec3 vViewPosition;
@@ -23,5 +25,5 @@ void main() {
   vec3 finalColor = goldColor * pulse * 1.5;
   float alpha = rim;
   
-  gl_FragColor = vec4(finalColor, alpha);
+  gl_FragColor = vec4(finalColor, alpha * uOpacity);
 }

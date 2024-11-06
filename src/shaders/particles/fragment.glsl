@@ -1,7 +1,7 @@
 // fragment.glsl
 varying vec2 vUv;
 varying vec3 vPosition;
-
+uniform float uOpacity;
 uniform float uTime;
 
 void main() {
@@ -53,5 +53,5 @@ void main() {
     float bloomStrength = 1.2 + sin(uTime) * 0.2;
     finalColor *= bloomStrength;
     
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(finalColor, alpha * uOpacity);
 }

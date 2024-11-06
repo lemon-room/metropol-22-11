@@ -26,9 +26,9 @@ manager.onError = function (url) { console.log("Ошибка загркзки " 
 
 
 // Loaders
-export const loaderGLB = new GLTFLoader(manager)
-export const loaderRGBE = new RGBELoader(manager)
 const dracoLoader = new DRACOLoader()
 dracoLoader.setDecoderPath('/draco/')
-dracoLoader.setDecoderConfig({ type: 'js' })
+dracoLoader.setDecoderConfig({ type: 'wasm' })
+export const loaderGLB = new GLTFLoader(manager)
+export const loaderRGBE = new RGBELoader(manager)
 loaderGLB.setDRACOLoader(dracoLoader)
