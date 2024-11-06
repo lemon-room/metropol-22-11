@@ -1,45 +1,128 @@
-console.log('%cCreated By: la6', 'background-color:green ;color: white; font-size: 21px; font-weight: bold');
-console.log('https://la6.su');
-import '/style.css'
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+console.log('%c Created By: la6 <3 ', 'background-color: green; color: white; font-size: 21px; font-weight: bold')
+console.log('https://la6.su')
+
+import '/src/style.css'
+
+import * as THREE from 'three'
+import { renderer, scene } from './core/renderer'
+import camera from './core/camera'
+import { loaderGLB, loaderRGBE } from './core/loaders'
+import { particleMaterial, outlineMaterial } from './core/materials'
+import { createParticleSystem } from './core/particleSystem'
+import { ambientLight, pointLight, directionalLight } from './core/lights'
+import { controls } from './core/orbit-control'
 import Stats from 'three/examples/jsm/libs/stats.module'
-
-
-let renderer, scene, camera, control;
-let box, material, mesh;
-
-const canvasWebGl = document.querySelector('canvas.webgl');
 
 const sizes = {
   width: window.innerWidth,
   height: window.innerHeight
 }
 
+let boxGeo, plane, material, boxMesh, hdriMap
+
+let sceneOne, sceneTwo
+let sceneOneAnimations, sceneTwoAnimations
+let sceneOneAnimationMixer, sceneTwoAnimationMixer
+
 
 const stats = new Stats()
 document.body.appendChild(stats.dom)
 
+loaderRGBE.setPath('/textures/')
+  .load('quarry_01_1k.hdr', function (texture) {
+    texture.mapping = THREE.EquirectangularReflectionMapping
+    hdriMap = texture
+  })
+
+
+
+// Загрузка GLB модели
+
+loaderGLB.load('03_Planet.glb', function (gltf) {
+  sceneTwo = gltf.scene
+  scene.add(sceneTwo)
+  sceneTwo.scale.set(0.35, 0.35, 0.35)
+  sceneTwo.position.set(0, 0.75, 0)
+  sceneTwoAnimationMixer = new THREE.AnimationMixer(sceneTwo)
+  sceneTwoAnimations = gltf.animations
+  // Запускаем все анимации
+  sceneTwoAnimations.forEach(clip => {
+    const action = sceneTwoAnimationMixer.clipAction(clip)
+    action.play()
+  })
+})
+
+loaderGLB.load('04_KV-Blender3_241102.glb', function (gltf) {
+  sceneOne = gltf.scene
+  sceneOne.position.set(0, 0, 2)
+  sceneOneAnimations = gltf.animations
+
+  sceneOne.traverse(function (node) {
+    if (
+      node instanceof THREE.Mesh &&
+      node.parent?.name === 'Circle-CONTROLLER'
+    ) {
+      node.material.envMap = hdriMap
+    }
+
+    if (node instanceof THREE.Mesh && node.parent?.name === 'Logo') {
+      node.material.envMap = hdriMap
+    }
+  })
+
+  const kvBg = sceneOne.getObjectByName('KV_BG')
+  if (kvBg && kvBg instanceof THREE.Mesh) {
+    const originalGeometry = kvBg.geometry
+
+    // Создаем меш с контуром
+    const outlineMesh = new THREE.Mesh(originalGeometry, outlineMaterial)
+    outlineMesh.position.copy(kvBg.position)
+    outlineMesh.position.z += 1.8 // Смещаем контур вперед
+    outlineMesh.position.y -= 1.2 // Смещаем контур вверх
+    outlineMesh.rotation.copy(kvBg.rotation)
+    outlineMesh.scale.copy(kvBg.scale)
+
+    // Создаем систему частиц
+    const particleSystem = createParticleSystem(
+      originalGeometry,
+      new THREE.Vector3(
+        kvBg.position.x,
+        kvBg.position.y - 1.2, // Смещаем частицы вверх
+        kvBg.position.z + 1.85, // Смещаем частицы вперед
+      ),
+      kvBg.rotation,
+      kvBg.scale,
+    )
+
+    // Добавляем контур и частицы, скрываем оригинальный меш
+    if (kvBg && kvBg.parent) {
+      kvBg.parent.add(outlineMesh)
+      kvBg.parent.add(particleSystem)
+    }
+
+    kvBg.visible = false
+  }
+
+  scene.add(sceneOne)
+
+  sceneOneAnimationMixer = new THREE.AnimationMixer(sceneOne)
+  // Запускаем все анимации
+  sceneOneAnimations.forEach(clip => {
+    const action = sceneOneAnimationMixer.clipAction(clip)
+    action.setLoop(THREE.LoopOnce, 1) // Проиграть только один раз
+    action.clampWhenFinished = true // Оставить анимацию в последнем кадре
+    action.play()
+  })
+})
 
 
 function init() {
 
-  scene = new THREE.Scene()
+  scene.add(ambientLight)
+  scene.add(pointLight)
+  scene.add(directionalLight)
 
-  renderer = new THREE.WebGLRenderer({
-    canvas: canvasWebGl,
-    antialias: true
-  })
-  renderer.setSize(sizes.width, sizes.height)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-
-
-  camera = new THREE.PerspectiveCamera(45, sizes.width / sizes.height, 0.1, 3000)
-  camera.position.z = 3
-  scene.add(camera)
-
-  control = new OrbitControls(camera, canvasWebGl)
-  control.enableDamping = true
+  scene.environment = hdriMap
 
   window.addEventListener('resize', () => {
     sizes.width = window.innerWidth
@@ -53,19 +136,32 @@ function init() {
   })
 
 
+  // boxGeo = new THREE.BoxGeometry(1, 1, 1)
 
-  box = new THREE.BoxGeometry(1, 1, 1)
-  material = new THREE.MeshBasicMaterial({ color: 'red' })
-  mesh = new THREE.Mesh(box, material)
-  scene.add(mesh)
+  // material = new THREE.MeshBasicMaterial({ color: 'red' })
+  // boxMesh = new THREE.Mesh(boxGeo, material)
+  // boxMesh.position.set(0, 0.5, 0)
+  // scene.add(boxMesh)
+
+  // Создание плоскости
+  plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(10, 10, 10, 10),
+    new THREE.MeshToonMaterial({ color: '#444' }),
+  )
+  plane.position.set(0, 0, 0)
+  plane.rotation.set(-Math.PI / 2, 0, 0)
+  plane.receiveShadow = true
+  scene.add(plane)
+
 }
+
 init()
 
 
-
-let delta;
-let fpsInterval, now, then, elapsed, startTime;
+let delta, prevTime
+let fpsInterval, now, then, elapsed, startTime
 const clock = new THREE.Clock()
+
 function LockFrame(fps) {
 
   fpsInterval = 1000 / fps
@@ -76,28 +172,30 @@ function LockFrame(fps) {
 LockFrame(60)
 
 
-
 function animate() {
+  const currentTime = Date.now()
+  const elapsedTime = clock.getElapsedTime()
   requestAnimationFrame(animate)
   now = window.performance.now()
   elapsed = now - then
 
   if (elapsed >= fpsInterval) {
     then = now - (elapsed % fpsInterval)
-    const delta = clock.getDelta();
-    // setInterval( () => 
-    // {
-    //   mesh.material.color = new THREE.Color(0xff1111 * Math.random() + 2)
-    // }, 5000)
+    delta = clock.getDelta()
 
-    // mesh.position.y = Math.sin(0.1)
-    // mesh.rotation.y += 0.001
+    // Обновляем время для шейдеров
+    particleMaterial.uniforms.uTime.value = elapsedTime
+    outlineMaterial.uniforms.uTime.value = elapsedTime
 
-    // if()
-
-
+    if (sceneOneAnimationMixer) {
+      sceneOneAnimationMixer.update((currentTime - prevTime) * 0.001)
+    }
+    if (sceneTwoAnimationMixer) {
+      sceneTwoAnimationMixer.update((currentTime - prevTime) * 0.001)
+    }
+    prevTime = currentTime
     stats.update()
-    control.update()
-    renderer.render(scene, camera);
+    controls.update()
+    renderer.render(scene, camera)
   }
 }
