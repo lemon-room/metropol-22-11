@@ -7,7 +7,7 @@ import * as THREE from 'three'
 import { renderer, scene } from './core/renderer'
 import camera from './core/camera'
 import { loaderGLB, loaderRGBE } from './core/loaders'
-import { particleMaterial, outlineMaterial } from './core/materials'
+import { particleMaterial, outlineMaterial, createGlowMaterial } from './core/materials'
 import { createParticleSystem } from './core/particleSystem'
 import { ambientLight, pointLight, directionalLight } from './core/lights'
 import { controls } from './core/orbit-control'
@@ -18,9 +18,9 @@ const sizes = {
   height: window.innerHeight
 }
 
-let boxGeo, plane, material, boxMesh, hdriMap
+//let boxGeo, plane, material, boxMesh
 
-let sceneOne, sceneTwo
+let sceneOne, sceneTwo, hdriMap
 let sceneOneAnimations, sceneTwoAnimations
 let sceneOneAnimationMixer, sceneTwoAnimationMixer
 
@@ -28,6 +28,7 @@ let sceneOneAnimationMixer, sceneTwoAnimationMixer
 const stats = new Stats()
 document.body.appendChild(stats.dom)
 
+// Загрузка HDR текстуры
 loaderRGBE.setPath('/textures/')
   .load('quarry_01_1k.hdr', function (texture) {
     texture.mapping = THREE.EquirectangularReflectionMapping
@@ -35,11 +36,17 @@ loaderRGBE.setPath('/textures/')
   })
 
 
-
 // Загрузка GLB модели
 
 loaderGLB.load('03_Planet.glb', function (gltf) {
   sceneTwo = gltf.scene
+  sceneTwo.traverse((child) => {
+    if (child.isMesh) {
+      // Создаем копию геометрии с немного увеличенным размером для свечения
+      const glowMaterial = createGlowMaterial(new THREE.Color(0x00ff00), 2.5)
+      child.material = glowMaterial
+    }
+  })
   scene.add(sceneTwo)
   sceneTwo.scale.set(0.35, 0.35, 0.35)
   sceneTwo.position.set(0, 0.75, 0)
@@ -57,16 +64,16 @@ loaderGLB.load('04_KV-Blender3_241102.glb', function (gltf) {
   sceneOne.position.set(0, 0, 2)
   sceneOneAnimations = gltf.animations
 
-  sceneOne.traverse(function (node) {
+  sceneOne.traverse(function (child) {
     if (
-      node instanceof THREE.Mesh &&
-      node.parent?.name === 'Circle-CONTROLLER'
+      child instanceof THREE.Mesh &&
+      child.parent?.name === 'Circle-CONTROLLER'
     ) {
-      node.material.envMap = hdriMap
+      child.material.envMap = hdriMap
     }
 
-    if (node instanceof THREE.Mesh && node.parent?.name === 'Logo') {
-      node.material.envMap = hdriMap
+    if (child instanceof THREE.Mesh && child.parent?.name === 'Logo') {
+      child.material.envMap = hdriMap
     }
   })
 
@@ -144,14 +151,14 @@ function init() {
   // scene.add(boxMesh)
 
   // Создание плоскости
-  plane = new THREE.Mesh(
-    new THREE.PlaneGeometry(10, 10, 10, 10),
-    new THREE.MeshToonMaterial({ color: '#444' }),
-  )
-  plane.position.set(0, 0, 0)
-  plane.rotation.set(-Math.PI / 2, 0, 0)
-  plane.receiveShadow = true
-  scene.add(plane)
+  // plane = new THREE.Mesh(
+  //   new THREE.PlaneGeometry(10, 10, 10, 10),
+  //   new THREE.MeshToonMaterial({ color: '#444' }),
+  // )
+  // plane.position.set(0, 0, 0)
+  // plane.rotation.set(-Math.PI / 2, 0, 0)
+  // plane.receiveShadow = true
+  // scene.add(plane)
 
 }
 
@@ -186,6 +193,7 @@ function animate() {
     // Обновляем время для шейдеров
     particleMaterial.uniforms.uTime.value = elapsedTime
     outlineMaterial.uniforms.uTime.value = elapsedTime
+
 
     if (sceneOneAnimationMixer) {
       sceneOneAnimationMixer.update((currentTime - prevTime) * 0.001)
